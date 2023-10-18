@@ -11,7 +11,7 @@
 #include "json_encode.h"
 #include "string_utils.h"
 
-#define LIBPOSTAL_USAGE "Usage: ./libpostal address [...languages] [--json]\n"
+#define LIBPOSTAL_USAGE "Usage: ./libpostal address [...languages] [--json] [--parse]\n"
 
 static inline void print_output(char *address, libpostal_normalize_options_t options, bool use_json, bool root_expansions) {
     size_t num_expansions;
@@ -44,7 +44,26 @@ static inline void print_output(char *address, libpostal_normalize_options_t opt
     }
 
     libpostal_expansion_array_destroy(expansions, num_expansions);
+}
 
+static inline void print_output_parser(char *address, libpostal_address_parser_options_t options, bool use_json) {
+    libpostal_address_parser_response_t *parsed = libpostal_parse_address(address, options);
+    
+    if (!use_json){
+        for (size_t i = 0; i < parsed->num_components; i++) {
+            printf("%s: %s\n", parsed->labels[i], parsed->components[i]);
+        } 
+    } else {
+        printf("{");
+        for (size_t i = 0; i < parsed->num_components; i++) {
+            char *json_string = json_encode_string(parsed->components[i]);
+            printf("\"%s\": %s%s", parsed->labels[i], json_string, i < parsed->num_components - 1 ? ", ": "");
+            free(json_string);
+        }
+        printf("}\n");
+    }
+
+    libpostal_address_parser_response_destroy(parsed);
 }
 
 int main(int argc, char **argv) {
@@ -54,6 +73,7 @@ int main(int argc, char **argv) {
 
     bool use_json = false;
     bool root_expansions = false;
+    bool parse = false;
 
     string_array *languages = NULL;
 
@@ -66,6 +86,8 @@ int main(int argc, char **argv) {
             use_json = true;
         } else if (string_equals(arg, "--root")) {
             root_expansions = true;
+        } else if (string_equals(arg, "--parse")) {
+            parse = true;
         } else if (address == NULL) {
             address = arg;
         } else if (!string_starts_with(arg, "-")) {
@@ -85,6 +107,10 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    if (!libpostal_setup_parser()) {
+        exit(EXIT_FAILURE);
+    }
+
     libpostal_normalize_options_t options = libpostal_get_default_options();
 
     if (languages != NULL) {
@@ -92,14 +118,24 @@ int main(int argc, char **argv) {
         options.num_languages = languages->n;
     }
 
-    if (address == NULL) {
+    if (parse){
+        libpostal_address_parser_options_t p_options = libpostal_get_address_parser_default_options();        
         char *line;
         while ((line = file_getline(stdin)) != NULL) {
-            print_output(line, options, use_json, root_expansions);
+            print_output_parser(line, p_options, use_json);
             free(line);
         }
-    } else {
-        print_output(address, options, use_json, root_expansions);
+    }
+    else {
+        if (address == NULL) {
+            char *line;
+            while ((line = file_getline(stdin)) != NULL) {
+                print_output(line, options, use_json, root_expansions);
+                free(line);
+            }
+        } else {
+            print_output(address, options, use_json, root_expansions);
+        }
     }
 
     if (languages != NULL) {
