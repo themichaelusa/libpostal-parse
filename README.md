@@ -2,7 +2,7 @@
 
 libpostal is a C library for parsing/normalizing street addresses around the world using statistical NLP and open data. The goal of this project is to understand location-based strings in every language, everywhere.
 
-libpostal-parse is an extension that supports a --parse flag.
+_libpostal-parse is a fork of libpostal that supports a --parse flag._
 
 Installation
 -------
